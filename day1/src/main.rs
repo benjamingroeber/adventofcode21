@@ -4,7 +4,7 @@ use std::ops::Add;
 
 fn main() -> AocResult<()> {
     print_current_dir();
-    let input = helpers::read_lines_numbers("day1/day1.input")?;
+    let input: Vec<usize> = helpers::read_lines_parse("day1/day1.input")?;
 
     // count the number of times a depth measurement increases from the previous measurement
     println!(

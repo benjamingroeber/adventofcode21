@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::BufRead;
 use std::num::ParseIntError;
 use std::path::Path;
+use std::str::FromStr;
 use std::{env, io};
 use thiserror::Error;
 
@@ -20,9 +21,11 @@ pub fn print_current_dir() {
     println!("The current directory is {:?}", path);
 }
 
-pub fn read_lines_numbers<P>(filename: P) -> AocResult<Vec<usize>>
+pub fn read_lines_parse<T, P>(filename: P) -> AocResult<Vec<T>>
 where
     P: AsRef<Path>,
+    T: FromStr,
+    AocError: From<<T as FromStr>::Err>,
 {
     let file = File::open(filename)?;
     let mut numbers = Vec::new();
@@ -41,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_read_file_numbers() {
-        let lines = read_lines_numbers("readline_numbers.input").unwrap();
+        let lines = read_lines_parse("readline_numbers.input").unwrap();
 
         assert_eq!(&lines, &[0, 1, 2, 3]);
     }
