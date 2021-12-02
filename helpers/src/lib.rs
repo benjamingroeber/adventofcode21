@@ -14,6 +14,8 @@ pub enum AocError {
     IoError(#[from] io::Error),
     #[error("parse int error")]
     ParseIntError(#[from] ParseIntError),
+    #[error("parse struct error {0}")]
+    ParseStructError(String),
 }
 
 pub fn print_current_dir() {
