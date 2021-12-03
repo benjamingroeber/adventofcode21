@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::BufRead;
+use std::io::{BufRead, BufReader};
 use std::num::ParseIntError;
 use std::path::Path;
 use std::str::FromStr;
@@ -23,21 +23,28 @@ pub fn print_current_dir() {
     println!("The current directory is {:?}", path);
 }
 
+pub fn read_file<P>(filename: P) -> AocResult<BufReader<File>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(filename)?;
+    Ok(io::BufReader::new(file))
+}
+
 pub fn read_lines_parse<T, P>(filename: P) -> AocResult<Vec<T>>
 where
     P: AsRef<Path>,
     T: FromStr,
     AocError: From<<T as FromStr>::Err>,
 {
-    let file = File::open(filename)?;
-    let mut numbers = Vec::new();
-    let reader = io::BufReader::new(file).lines();
-    for l in reader {
-        let number = l?.parse()?;
-        numbers.push(number)
+    let reader = read_file(filename)?;
+    let mut parsed = Vec::new();
+    for line in reader.lines() {
+        let value = line?.parse()?;
+        parsed.push(value);
     }
 
-    Ok(numbers)
+    Ok(parsed)
 }
 
 #[cfg(test)]
@@ -46,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_read_file_numbers() {
-        let lines = read_lines_parse("readline_numbers.input").unwrap();
+        let lines: Vec<usize> = read_lines_parse("readline_numbers.input").unwrap();
 
         assert_eq!(&lines, &[0, 1, 2, 3]);
     }
