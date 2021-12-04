@@ -106,6 +106,14 @@ impl<T> Grid<T> {
         })
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.data.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.data.iter_mut()
+    }
+
     pub fn iter_row(&self, row: usize) -> GridRowIterator<T> {
         GridRowIterator {
             grid: self,
