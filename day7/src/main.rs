@@ -9,7 +9,7 @@ type Unit = i32;
 fn main() -> AocResult<()> {
     let start = Instant::now();
     let mut input = String::new();
-    helpers::read_file("day7/day7.input")?.read_to_string(&mut input)?;
+    helpers::read_file_reader("day7/day7.input")?.read_to_string(&mut input)?;
 
     let numbers: Result<Vec<Unit>, _> = input
         .lines()

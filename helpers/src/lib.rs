@@ -1,5 +1,6 @@
+use std::fmt::{Debug, Formatter};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::mem::swap;
 use std::num::ParseIntError;
 use std::path::Path;
@@ -26,12 +27,22 @@ pub fn print_current_dir() {
     println!("The current directory is {:?}", path);
 }
 
-pub fn read_file<P>(filename: P) -> AocResult<BufReader<File>>
+pub fn read_file_reader<P>(filename: P) -> AocResult<BufReader<File>>
 where
     P: AsRef<Path>,
 {
     let file = File::open(filename)?;
     Ok(io::BufReader::new(file))
+}
+
+pub fn read_file_string<P>(filename: P) -> AocResult<String>
+where
+    P: AsRef<Path>,
+{
+    let mut s = String::new();
+    let mut reader = read_file_reader(filename)?;
+    reader.read_to_string(&mut s)?;
+    Ok(s)
 }
 
 pub fn read_lines_parse<T, P>(filename: P) -> AocResult<Vec<T>>
@@ -40,7 +51,7 @@ where
     T: FromStr,
     AocError: From<<T as FromStr>::Err>,
 {
-    let reader = read_file(filename)?;
+    let reader = read_file_reader(filename)?;
     let mut parsed = Vec::new();
     for line in reader.lines() {
         let value = line?.parse()?;
@@ -55,14 +66,47 @@ pub struct Grid<T> {
     data: Vec<T>,
 }
 
+// TODO Maybe reimplement Hash only on x and y?
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct Point<'a, T> {
+    pub x: usize,
+    pub y: usize,
+    pub value: &'a T,
+}
+
+impl<T> Debug for Grid<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for (i, p) in self.data.iter().enumerate() {
+            if i != 0 && i % self.num_columns == 0 {
+                writeln!(f)?;
+            }
+            write!(f, "{:?} ", p)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T> Grid<T> {
+    pub fn new(num_columns: usize) -> Self {
+        Grid {
+            num_columns,
+            data: Vec::new(),
+        }
+    }
+}
+
 impl<T: Default + Clone> Grid<T> {
-    pub fn new(x: usize, y: usize) -> Self {
+    pub fn default(x: usize, y: usize) -> Self {
         Grid {
             num_columns: x,
             data: vec![T::default(); x * y],
         }
     }
 }
+
 impl<T: Clone> Grid<T> {
     pub fn with_default(x: usize, y: usize, default: T) -> Self {
         Grid {
@@ -85,6 +129,35 @@ impl<T: Clone> Grid<T> {
             data: data.to_vec(),
         })
     }
+
+    pub fn from_first_row(data: &[T]) -> Self {
+        let num_columns = data.len();
+        Self {
+            num_columns,
+            data: data.to_vec(),
+        }
+    }
+}
+
+impl<T> Grid<T>
+where
+    T: ToOwned + ToOwned<Owned = T>,
+{
+    pub fn add_row(&mut self, data: &[T]) -> AocResult<()> {
+        if data.len() != self.num_columns {
+            Err(AocError::GridError(format!(
+                "Added rows must have the same number of columns as existing rows {}, got {}",
+                self.num_columns,
+                data.len()
+            )))
+        } else {
+            for i in data.iter() {
+                self.data.push(i.to_owned());
+            }
+
+            Ok(())
+        }
+    }
 }
 
 impl<T> Grid<T> {
@@ -92,9 +165,24 @@ impl<T> Grid<T> {
         self.num_columns * y + x
     }
 
-    pub fn get(&self, x: usize, y: usize) -> Option<&T> {
+    pub fn dimensions(&self) -> (usize, usize) {
+        (self.column_count(), self.row_count())
+    }
+
+    pub fn column_count(&self) -> usize {
+        self.num_columns
+    }
+
+    pub fn row_count(&self) -> usize {
+        self.data.len() / self.num_columns
+    }
+
+    pub fn get(&self, x: usize, y: usize) -> Option<Point<T>> {
+        if x >= self.column_count() || y >= self.row_count() {
+            return None;
+        }
         let idx = self.idx(x, y);
-        self.data.get(idx)
+        self.data.get(idx).map(|value| Point { x, y, value })
     }
 
     pub fn set(&mut self, x: usize, y: usize, mut value: T) -> Option<T> {
@@ -129,6 +217,14 @@ impl<T> Grid<T> {
             i: 0,
         }
     }
+
+    pub fn neighbours(&self, x: usize, y: usize) -> [Option<Point<T>>; 4] {
+        let left = if x > 0 { self.get(x - 1, y) } else { None };
+        let up = if y > 0 { self.get(x, y - 1) } else { None };
+        let right = self.get(x + 1, y);
+        let down = self.get(x, y + 1);
+        [left, up, right, down]
+    }
 }
 
 pub struct GridRowIterator<'a, T> {
@@ -138,7 +234,7 @@ pub struct GridRowIterator<'a, T> {
 }
 
 impl<'a, T> Iterator for GridRowIterator<'a, T> {
-    type Item = &'a T;
+    type Item = Point<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.i >= self.grid.num_columns {
@@ -158,7 +254,7 @@ pub struct GridColumnIterator<'a, T> {
 }
 
 impl<'a, T> Iterator for GridColumnIterator<'a, T> {
-    type Item = &'a T;
+    type Item = Point<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.i > self.grid.data.len() / self.grid.num_columns {
@@ -182,12 +278,66 @@ mod tests {
         let failed_grid = Grid::from_slice(&data, 3);
         let grid = Grid::from_slice(&data, 2).unwrap();
 
-        assert_eq!(grid.get(0, 0), Some(&1));
-        assert_eq!(grid.get(1, 0), Some(&2));
-        assert_eq!(grid.get(0, 1), Some(&3));
-        assert_eq!(grid.get(1, 1), Some(&4));
+        assert_eq!(
+            grid.get(0, 0),
+            Some(Point {
+                x: 0,
+                y: 0,
+                value: &1
+            })
+        );
+        assert_eq!(
+            grid.get(1, 0),
+            Some(Point {
+                x: 1,
+                y: 0,
+                value: &2
+            })
+        );
+        assert_eq!(
+            grid.get(0, 1),
+            Some(Point {
+                x: 0,
+                y: 1,
+                value: &3
+            })
+        );
+        assert_eq!(
+            grid.get(1, 1),
+            Some(Point {
+                x: 1,
+                y: 1,
+                value: &4
+            })
+        );
+
+        assert_eq!(grid.get(2, 0), None);
+        assert_eq!(grid.get(0, 2), None);
 
         assert!(failed_grid.is_err())
+    }
+
+    #[test]
+    fn grid_add_row() {
+        let data = [1, 2, 3, 4];
+        let mut grid = Grid::from_slice(&data, 2).unwrap();
+
+        let get_before1 = grid.get(0, 2).map(|p| *p.value);
+        let get_before2 = grid.get(1, 2).map(|p| *p.value);
+        let failed_append1 = grid.add_row(&[1, 2, 3]);
+        let failed_append2 = grid.add_row(&[1]);
+        let failed_append3 = grid.add_row(&[]);
+        grid.add_row(&[5, 6]).unwrap();
+        let get_after1 = grid.get(0, 2);
+        let get_after2 = grid.get(1, 2);
+
+        assert!(failed_append1.is_err());
+        assert!(failed_append2.is_err());
+        assert!(failed_append3.is_err());
+        assert_eq!(get_before1, None);
+        assert_eq!(get_before2, None);
+        assert_eq!(*get_after1.unwrap().value, 5);
+        assert_eq!(*get_after2.unwrap().value, 6);
     }
 
     #[test]
@@ -217,20 +367,20 @@ mod tests {
         let mut second_row = grid.iter_row(1);
         let mut third_row = grid.iter_row(2);
 
-        assert_eq!(first_row.next(), Some(&1));
-        assert_eq!(first_row.next(), Some(&2));
-        assert_eq!(first_row.next(), Some(&3));
+        assert_eq!(first_row.next().map(|p| p.value), Some(&1));
+        assert_eq!(first_row.next().map(|p| p.value), Some(&2));
+        assert_eq!(first_row.next().map(|p| p.value), Some(&3));
         assert_eq!(first_row.next(), None);
         assert_eq!(first_row.next(), None);
 
-        assert_eq!(second_row.next(), Some(&4));
-        assert_eq!(second_row.next(), Some(&5));
-        assert_eq!(second_row.next(), Some(&6));
+        assert_eq!(second_row.next().map(|p| p.value), Some(&4));
+        assert_eq!(second_row.next().map(|p| p.value), Some(&5));
+        assert_eq!(second_row.next().map(|p| p.value), Some(&6));
         assert_eq!(second_row.next(), None);
 
-        assert_eq!(third_row.next(), Some(&7));
-        assert_eq!(third_row.next(), Some(&8));
-        assert_eq!(third_row.next(), Some(&9));
+        assert_eq!(third_row.next().map(|p| p.value), Some(&7));
+        assert_eq!(third_row.next().map(|p| p.value), Some(&8));
+        assert_eq!(third_row.next().map(|p| p.value), Some(&9));
         assert_eq!(third_row.next(), None);
     }
 
@@ -242,20 +392,20 @@ mod tests {
         let mut second_col = grid.iter_col(1);
         let mut third_col = grid.iter_col(2);
 
-        assert_eq!(first_col.next(), Some(&1));
-        assert_eq!(first_col.next(), Some(&4));
-        assert_eq!(first_col.next(), Some(&7));
+        assert_eq!(first_col.next().map(|p| p.value), Some(&1));
+        assert_eq!(first_col.next().map(|p| p.value), Some(&4));
+        assert_eq!(first_col.next().map(|p| p.value), Some(&7));
         assert_eq!(first_col.next(), None);
         assert_eq!(first_col.next(), None);
 
-        assert_eq!(second_col.next(), Some(&2));
-        assert_eq!(second_col.next(), Some(&5));
-        assert_eq!(second_col.next(), Some(&8));
+        assert_eq!(second_col.next().map(|p| p.value), Some(&2));
+        assert_eq!(second_col.next().map(|p| p.value), Some(&5));
+        assert_eq!(second_col.next().map(|p| p.value), Some(&8));
         assert_eq!(second_col.next(), None);
 
-        assert_eq!(third_col.next(), Some(&3));
-        assert_eq!(third_col.next(), Some(&6));
-        assert_eq!(third_col.next(), Some(&9));
+        assert_eq!(third_col.next().map(|p| p.value), Some(&3));
+        assert_eq!(third_col.next().map(|p| p.value), Some(&6));
+        assert_eq!(third_col.next().map(|p| p.value), Some(&9));
         assert_eq!(third_col.next(), None);
     }
 

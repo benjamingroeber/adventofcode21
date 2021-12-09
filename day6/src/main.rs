@@ -9,7 +9,7 @@ const PARENT_REPRODUCTION_DAYS: usize = 7;
 fn main() -> AocResult<()> {
     let start = Instant::now();
     let mut input = String::new();
-    helpers::read_file("day6/day6.input")?.read_to_string(&mut input)?;
+    helpers::read_file_reader("day6/day6.input")?.read_to_string(&mut input)?;
 
     let numbers: Result<Vec<Unit>, _> = input
         .lines()

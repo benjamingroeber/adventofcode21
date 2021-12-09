@@ -1,4 +1,4 @@
-use helpers::{read_file, AocError, AocResult, Grid};
+use helpers::{read_file_reader, AocError, AocResult, Grid};
 use std::fmt::{Display, Formatter};
 use std::io::Read;
 use std::mem::swap;
@@ -13,7 +13,7 @@ type Unit = u32;
 fn main() -> AocResult<()> {
     let mut data = String::new();
     // read_file("day4/day4.testinput")?.read_to_string(&mut data)?;
-    read_file("day4/day4.input")?.read_to_string(&mut data)?;
+    read_file_reader("day4/day4.input")?.read_to_string(&mut data)?;
 
     let (numbers, mut game) = parse_input(&data)?;
 
@@ -146,11 +146,11 @@ impl BingoBoard {
         (0..BINGO_BOARD_GRID).any(|i| {
             self.data
                 .iter_col(i)
-                .all(|f| matches!(f, BingoField::Crossed(_)))
+                .all(|f| matches!(f.value, BingoField::Crossed(_)))
                 || self
                     .data
                     .iter_row(i)
-                    .all(|f| matches!(f, BingoField::Crossed(_)))
+                    .all(|f| matches!(f.value, BingoField::Crossed(_)))
         })
     }
 
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn example_part1() {
         let mut data = String::new();
-        read_file("day4.testinput")
+        read_file_reader("day4.testinput")
             .unwrap()
             .read_to_string(&mut data)
             .unwrap();
@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn example_part2() {
         let mut data = String::new();
-        read_file("day4.testinput")
+        read_file_reader("day4.testinput")
             .unwrap()
             .read_to_string(&mut data)
             .unwrap();
