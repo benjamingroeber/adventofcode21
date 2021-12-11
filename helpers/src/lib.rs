@@ -74,6 +74,13 @@ pub struct Point<'a, T> {
     pub value: &'a T,
 }
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct MutPoint<'a, T> {
+    pub x: usize,
+    pub y: usize,
+    pub value: &'a mut T,
+}
+
 impl<T> Debug for Grid<T>
 where
     T: Debug,
@@ -185,6 +192,14 @@ impl<T> Grid<T> {
         self.data.get(idx).map(|value| Point { x, y, value })
     }
 
+    pub fn get_mut(&mut self, x: usize, y: usize) -> Option<MutPoint<T>> {
+        if x >= self.column_count() || y >= self.row_count() {
+            return None;
+        }
+        let idx = self.idx(x, y);
+        self.data.get_mut(idx).map(|value| MutPoint { x, y, value })
+    }
+
     pub fn set(&mut self, x: usize, y: usize, mut value: T) -> Option<T> {
         let idx = self.idx(x, y);
         self.data.get_mut(idx).map(|element| {
@@ -224,6 +239,35 @@ impl<T> Grid<T> {
         let right = self.get(x + 1, y);
         let down = self.get(x, y + 1);
         [left, up, right, down]
+    }
+
+    pub fn surrounding_indexes(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
+        let mut surrounding_nodes: Vec<_> = self
+            .neighbours(x, y)
+            .iter()
+            .filter_map(|p| p.as_ref().map(|pp| (pp.x, pp.y)))
+            .collect();
+
+        if x > 0 && y > 0 {
+            if let Some(left_up) = self.get(x - 1, y - 1) {
+                surrounding_nodes.push((left_up.x, left_up.y))
+            }
+        }
+        if y > 0 {
+            if let Some(up_right) = self.get(x + 1, y - 1) {
+                surrounding_nodes.push((up_right.x, up_right.y));
+            }
+        }
+        if let Some(right_down) = self.get(x + 1, y + 1) {
+            surrounding_nodes.push((right_down.x, right_down.y));
+        };
+        if x > 0 {
+            if let Some(down_left) = self.get(x - 1, y + 1) {
+                surrounding_nodes.push((down_left.x, down_left.y))
+            }
+        }
+
+        surrounding_nodes
     }
 }
 
