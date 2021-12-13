@@ -20,6 +20,8 @@ pub enum AocError {
     ParseStructError(String),
     #[error("grid error {0}")]
     GridError(String),
+    #[error("Challenge error")]
+    ChallengeError(String),
 }
 
 pub fn print_current_dir() {
